@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>廖宥青 週行事曆</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif; background: #f5f7fa; color: #333; }
+
+  /* Header */
+  .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .header h1 { font-size: 18px; font-weight: 700; color: #2c3e50; flex: 1; }
+  .week-nav { display: flex; align-items: center; gap: 8px; }
+  .week-nav button { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 14px; transition: background .15s; }
+  .week-nav button:hover { background: #f0f0f0; }
+  .week-label { font-size: 14px; font-weight: 600; color: #555; min-width: 180px; text-align: center; }
+  .btn-settings { background: #2c3e50; color: #fff; border: none; border-radius: 6px; padding: 7px 16px; cursor: pointer; font-size: 14px; }
+  .btn-settings:hover { background: #3d5166; }
+  .btn-today { background: #3498db; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 14px; }
+  .btn-today:hover { background: #2980b9; }
+
+  /* Calendar grid */
+  .calendar-wrap { padding: 16px; overflow-x: auto; }
+  .calendar { display: grid; grid-template-columns: 56px repeat(7, 1fr); min-width: 700px; border: 1px solid #ddd; border-radius: 10px; background: #fff; overflow: hidden; }
+
+  /* Day headers */
+  .day-header { background: #f8f9fa; border-bottom: 2px solid #e0e0e0; padding: 10px 4px; text-align: center; font-size: 13px; font-weight: 600; color: #555; }
+  .day-header.today { background: #e8f4fd; color: #2980b9; }
+  .day-header .date-num { font-size: 20px; font-weight: 700; display: block; margin-bottom: 2px; }
+  .day-header.today .date-num { color: #2980b9; }
+  .corner { background: #f8f9fa; border-bottom: 2px solid #e0e0e0; border-right: 1px solid #e0e0e0; }
+
+  /* Time slots */
+  .time-label { border-right: 1px solid #e0e0e0; display: flex; align-items: flex-start; justify-content: center; padding-top: 4px; font-size: 11px; color: #999; background: #fafafa; }
+  .slot { border-right: 1px solid #eee; border-bottom: 1px solid #eee; min-height: 48px; position: relative; cursor: pointer; transition: background .1s; }
+  .slot:last-child { border-right: none; }
+  .slot.today-col { background: #f0f8ff; }
+  .slot.today-col:hover { background: #e3f2fd; }
+  .slot:not(.today-col):hover { background: #f9f9f9; }
+
+  /* Lunch slot */
+  .slot.lunch { background: #FAEEDA !important; cursor: pointer; }
+  .slot.lunch:hover { background: #f5e0c0 !important; }
+  .slot.lunch-override { background: #fff3cd !important; }
+
+  /* Merged event block */
+  .event-block { position: absolute; inset: 2px; border-radius: 6px; background: #d4eaf9; border-left: 3px solid #3498db; display: flex; flex-direction: column; justify-content: center; padding: 4px 6px; font-size: 12px; font-weight: 600; color: #1a6e9e; overflow: hidden; cursor: pointer; z-index: 1; }
+  .event-block:hover { background: #bde0f5; }
+  .event-block .duration-tag { position: absolute; bottom: 3px; right: 5px; font-size: 10px; color: #888; font-weight: 400; }
+  .event-block .event-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Lunch block */
+  .lunch-block { position: absolute; inset: 2px; border-radius: 6px; background: #FAEEDA; border-left: 3px solid #f39c12; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; font-weight: 600; color: #c0731a; cursor: pointer; z-index: 1; }
+  .lunch-block:hover { background: #f5e0c0; }
+  .lunch-block .moon { font-size: 16px; }
+  .lunch-override-block { background: #fff3cd; border-left-color: #e6a817; color: #856404; }
+
+  /* Empty lunch placeholder */
+  .lunch-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; gap: 4px; color: #c0731a; font-size: 11px; pointer-events: none; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 12px; width: 360px; max-width: 95vw; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
+  .modal-head { padding: 18px 20px 12px; border-bottom: 1px solid #eee; }
+  .modal-head h3 { font-size: 16px; color: #2c3e50; }
+  .modal-head .modal-time { font-size: 12px; color: #888; margin-top: 3px; }
+  .modal-body { padding: 16px 20px; }
+  .modal-body textarea { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; outline: none; }
+  .modal-body textarea:focus { border-color: #3498db; }
+  .modal-foot { padding: 12px 20px 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-save { background: #3498db; color: #fff; border: none; border-radius: 7px; padding: 8px 20px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-save:hover { background: #2980b9; }
+  .btn-clear { background: #fff; color: #e74c3c; border: 1px solid #e74c3c; border-radius: 7px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+  .btn-clear:hover { background: #fdf2f2; }
+  .btn-restore { background: #fff; color: #f39c12; border: 1px solid #f39c12; border-radius: 7px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+  .btn-restore:hover { background: #fef9f0; }
+  .btn-cancel { background: #f5f5f5; color: #555; border: none; border-radius: 7px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+  .btn-cancel:hover { background: #ebebeb; }
+  .lunch-warn { color: #c0731a; font-size: 13px; background: #fff9ed; border: 1px solid #f5c97a; border-radius: 6px; padding: 8px 10px; margin-bottom: 12px; }
+
+  /* Settings panel */
+  .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; }
+  .settings-overlay.open { display: flex; }
+  .settings-panel { background: #fff; border-radius: 12px; width: 500px; max-width: 96vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
+  .settings-panel .s-head { padding: 18px 20px 14px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+  .settings-panel .s-head h2 { font-size: 17px; color: #2c3e50; }
+  .settings-panel .s-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; line-height: 1; }
+  .settings-panel .s-body { padding: 18px 20px; }
+  .s-section { margin-bottom: 24px; }
+  .s-section h3 { font-size: 14px; font-weight: 700; color: #555; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0; }
+  .fixed-event-row { display: grid; grid-template-columns: 1fr 1fr 120px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .fixed-event-row input, .fixed-event-row select { border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 13px; font-family: inherit; outline: none; width: 100%; }
+  .fixed-event-row input:focus, .fixed-event-row select:focus { border-color: #3498db; }
+  .fixed-event-row .row-label { font-size: 12px; color: #888; }
+  .btn-add-rule { background: #ecf6fb; color: #2980b9; border: 1px dashed #3498db; border-radius: 6px; padding: 8px; width: 100%; cursor: pointer; font-size: 13px; margin-top: 4px; }
+  .btn-add-rule:hover { background: #daeef9; }
+  .btn-del-rule { background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
+  .btn-save-settings { background: #2c3e50; color: #fff; border: none; border-radius: 8px; padding: 10px 28px; cursor: pointer; font-size: 15px; font-weight: 600; }
+  .btn-save-settings:hover { background: #3d5166; }
+  .s-foot { padding: 12px 20px 18px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #eee; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #666; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 3px; }
+
+  /* Day headers row */
+  .col-labels { display: contents; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 14px; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📅 廖宥青 週行事曆</h1>
+  <div class="week-nav">
+    <button id="btnPrevWeek">&#8592;</button>
+    <span class="week-label" id="weekLabel"></span>
+    <button id="btnNextWeek">&#8594;</button>
+  </div>
+  <button class="btn-today" id="btnToday">本週</button>
+  <button class="btn-settings" id="btnSettings">⚙ 固定行程設定</button>
+</div>
+
+<div class="calendar-wrap">
+  <div class="calendar" id="calendarGrid"></div>
+</div>
+
+<!-- Legend -->
+<div style="padding: 0 16px 16px;">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#FAEEDA;border:1px solid #f39c12"></div> 午休</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#d4eaf9;border:1px solid #3498db"></div> 已排程</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fff3cd;border:1px solid #e6a817"></div> 午休已更改</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0f8ff;border:1px solid #b0d4f1"></div> 今日</div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">編輯行程</h3>
+      <div class="modal-time" id="modalTime"></div>
+    </div>
+    <div class="modal-body">
+      <div class="lunch-warn" id="lunchWarn" style="display:none">⚠ 這是午休時段（12:00–14:00），確定要更改？</div>
+      <textarea id="modalInput" placeholder="輸入行程內容…"></textarea>
+    </div>
+    <div class="modal-foot" id="modalFoot">
+      <button class="btn-cancel" id="btnCancel">取消</button>
+      <button class="btn-clear" id="btnClear" style="display:none">清除</button>
+      <button class="btn-restore" id="btnRestore" style="display:none">恢復午休</button>
+      <button class="btn-save" id="btnSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <div class="s-head">
+      <h2>⚙ 固定行程設定</h2>
+      <button class="s-close" id="btnCloseSettings">×</button>
+    </div>
+    <div class="s-body">
+      <div class="s-section">
+        <h3>每週固定行程規則</h3>
+        <div style="font-size:12px;color:#999;margin-bottom:10px;">設定後每週自動套用，可個別修改或清除。</div>
+        <div id="rulesContainer"></div>
+        <button class="btn-add-rule" id="btnAddRule">＋ 新增固定行程</button>
+      </div>
+      <div class="s-section">
+        <h3>說明</h3>
+        <div style="font-size:13px;color:#666;line-height:1.7;">
+          • 午休（12:00–14:00）每天預設鎖定，點擊需確認才能更改。<br>
+          • 固定行程儲存後，切換週次時自動填入（未覆蓋時）。<br>
+          • 個別週次的修改不影響固定行程規則。
+        </div>
+      </div>
+    </div>
+    <div class="s-foot">
+      <button class="btn-cancel" id="btnCancelSettings">取消</button>
+      <button class="btn-save-settings" id="btnSaveSettings">儲存設定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DAY_NAMES = ['週日','週一','週二','週三','週四','週五','週六'];
+const SLOT_START = 8; // 08:00
+const SLOT_COUNT = 12; // 08–20
+const LUNCH_SLOTS = [4, 5]; // 12:00–14:00
+
+function padZ(n){ return String(n).padStart(2,'0'); }
+function slotToTime(s){ return `${padZ(SLOT_START+s)}:00`; }
+function slotRangeLabel(s, count=1){
+  return `${slotToTime(s)} – ${slotToTime(s+count)}（${count}小時）`;
+}
+
+// ---- State ----
+let currentWeekStart; // Date (Sunday)
+// weekData: { "YYYY-WW": { events: {}, lunchOverride: {} } }
+let weekData = {};
+// fixedRules: [{ label, days:[0-6], startSlot, endSlot }]
+let fixedRules = [];
+// Modal state
+let modalCtx = null; // { weekKey, dayIndex, slotIndex, mergedSlots }
+
+function getWeekKey(sunday){
+  return `${sunday.getFullYear()}-${padZ(sunday.getMonth()+1)}-${padZ(sunday.getDate())}`;
+}
+
+function getSundayOf(date){
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+
+function getWeekData(weekKey){
+  if(!weekData[weekKey]) weekData[weekKey] = { events:{}, lunchOverride:{} };
+  return weekData[weekKey];
+}
+
+function applyFixedRules(weekKey){
+  const wd = getWeekData(weekKey);
+  fixedRules.forEach(rule => {
+    rule.days.forEach(dayIdx => {
+      for(let s = rule.startSlot; s <= rule.endSlot; s++){
+        const key = `${dayIdx}_${s}`;
+        // Only set if not already customized
+        if(!(key in wd.events)){
+          wd.events[key] = rule.label;
+        }
+      }
+    });
+  });
+}
+
+// ---- Persistence ----
+function saveAll(){
+  localStorage.setItem('lyq_weekData', JSON.stringify(weekData));
+  localStorage.setItem('lyq_fixedRules', JSON.stringify(fixedRules));
+}
+
+function loadAll(){
+  try {
+    const wd = localStorage.getItem('lyq_weekData');
+    if(wd) weekData = JSON.parse(wd);
+    const fr = localStorage.getItem('lyq_fixedRules');
+    if(fr) fixedRules = JSON.parse(fr);
+    else initDefaultRules();
+  } catch(e){
+    initDefaultRules();
+  }
+}
+
+function initDefaultRules(){
+  fixedRules = [
+    { label:'團練－晨練', days:[1,2,4,5], startSlot:0, endSlot:1 }
+  ];
+  // Seed initial week
+  const initKey = '2026-05-24';
+  const wd = getWeekData(initKey);
+  // Apply default rules to initial week
+  fixedRules[0].days.forEach(d => {
+    wd.events[`${d}_0`] = '團練－晨練';
+    wd.events[`${d}_1`] = '團練－晨練';
+  });
+}
+
+// ---- Render Calendar ----
+function renderCalendar(){
+  const grid = document.getElementById('calendarGrid');
+  grid.innerHTML = '';
+  const weekKey = getWeekKey(currentWeekStart);
+  applyFixedRules(weekKey);
+  const wd = getWeekData(weekKey);
+
+  // Update week label
+  const endDate = new Date(currentWeekStart);
+  endDate.setDate(endDate.getDate()+6);
+  document.getElementById('weekLabel').textContent =
+    `${currentWeekStart.getFullYear()}.${padZ(currentWeekStart.getMonth()+1)}.${padZ(currentWeekStart.getDate())} – ${padZ(endDate.getMonth()+1)}.${padZ(endDate.getDate())}`;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayDay = today.getDay();
+  const isCurrentWeek = getSundayOf(today).getTime() === currentWeekStart.getTime();
+
+  // Corner
+  const corner = document.createElement('div');
+  corner.className = 'corner day-header';
+  grid.appendChild(corner);
+
+  // Day headers
+  for(let d=0; d<7; d++){
+    const colDate = new Date(currentWeekStart);
+    colDate.setDate(colDate.getDate()+d);
+    const isToday = isCurrentWeek && d === todayDay;
+    const hdr = document.createElement('div');
+    hdr.className = 'day-header' + (isToday?' today':'');
+    hdr.innerHTML = `<span class="date-num">${colDate.getDate()}</span>${DAY_NAMES[d]}`;
+    grid.appendChild(hdr);
+  }
+
+  // Rows: we need to know merged blocks before rendering
+  // Build merge map: for each day, find consecutive slots with same content
+  // mergeMap[dayIdx] = array of { startSlot, endSlot, text, isLunch }
+  const mergeMap = {};
+  for(let d=0; d<7; d++){
+    mergeMap[d] = buildMergeMap(d, wd);
+  }
+
+  // Track which slots are covered by a merged block (not the first slot)
+  const covered = {}; // "dayIdx_slot" -> true if rendered by a merged block starting above
+
+  // Render slot rows
+  for(let s=0; s<SLOT_COUNT; s++){
+    // Time label
+    const tl = document.createElement('div');
+    tl.className = 'time-label';
+    tl.textContent = slotToTime(s);
+    grid.appendChild(tl);
+
+    for(let d=0; d<7; d++){
+      const key = `${d}_${s}`;
+      if(covered[key]){ continue; } // skip, already rendered
+
+      const isLunchSlot = LUNCH_SLOTS.includes(s);
+      const isToday = isCurrentWeek && d === todayDay;
+
+      // Find merge block starting at this slot
+      const block = mergeMap[d].find(b => b.startSlot === s);
+
+      const cell = document.createElement('div');
+      const span = block ? (block.endSlot - block.startSlot + 1) : 1;
+
+      if(span > 1){
+        // Mark subsequent slots as covered
+        for(let ss = s+1; ss <= block.endSlot; ss++){
+          covered[`${d}_${ss}`] = true;
+        }
+        cell.style.gridRow = `span ${span}`;
+      }
+
+      cell.className = 'slot' + (isToday?' today-col':'');
+      if(isLunchSlot && !block) cell.className += ' lunch';
+      if(isLunchSlot && wd.lunchOverride && wd.lunchOverride[key]) cell.className += ' lunch-override';
+
+      if(block){
+        // Render event block inside
+        const isLunchBlock = block.isLunch;
+        const inner = document.createElement('div');
+        inner.className = isLunchBlock
+          ? ('lunch-block' + (block.isOverride?' lunch-override-block':''))
+          : 'event-block';
+
+        if(isLunchBlock){
+          inner.innerHTML = `<span class="moon">🌙</span><span>${block.text}</span>`;
+        } else {
+          inner.innerHTML = `<span class="event-text">${escHtml(block.text)}</span>
+            ${span>1?`<span class="duration-tag">${span}h</span>`:''}`;
+        }
+        cell.appendChild(inner);
+        inner.addEventListener('click', (e)=>{ e.stopPropagation(); openModal(d, s, block, wd, weekKey); });
+      } else if(isLunchSlot){
+        // Empty lunch slot
+        cell.innerHTML = `<div class="lunch-placeholder">🌙 午休</div>`;
+        cell.addEventListener('click', ()=> openModal(d, s, null, wd, weekKey));
+      } else {
+        cell.addEventListener('click', ()=> openModal(d, s, null, wd, weekKey));
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function buildMergeMap(dayIdx, wd){
+  const blocks = [];
+  let s = 0;
+  while(s < SLOT_COUNT){
+    const key = `${dayIdx}_${s}`;
+    const isLunch = LUNCH_SLOTS.includes(s);
+    const text = wd.events[key];
+    const isOverride = wd.lunchOverride && wd.lunchOverride[key];
+
+    if(text){
+      // Find consecutive slots with same text
+      let end = s;
+      while(end+1 < SLOT_COUNT && wd.events[`${dayIdx}_${end+1}`] === text){
+        end++;
+      }
+      blocks.push({ startSlot:s, endSlot:end, text, isLunch: isLunch && !isOverride, isOverride });
+      s = end+1;
+    } else if(isLunch && !isOverride){
+      // Merge consecutive lunch slots without custom text
+      let end = s;
+      while(end+1 < SLOT_COUNT && LUNCH_SLOTS.includes(end+1) && !wd.events[`${dayIdx}_${end+1}`]){
+        end++;
+      }
+      blocks.push({ startSlot:s, endSlot:end, text:'午休', isLunch:true, isOverride:false });
+      s = end+1;
+    } else {
+      s++;
+    }
+  }
+  return blocks;
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ---- Modal ----
+function openModal(dayIdx, slotIndex, block, wd, weekKey){
+  modalCtx = { dayIdx, slotIndex, block, wd, weekKey };
+  const isLunch = LUNCH_SLOTS.includes(slotIndex) && (!block || block.isLunch);
+  const mergedSlots = block ? block.endSlot - block.startSlot + 1 : 1;
+  const timeStr = block
+    ? slotRangeLabel(block.startSlot, mergedSlots)
+    : slotRangeLabel(slotIndex);
+  const dayLabel = DAY_NAMES[dayIdx];
+  const colDate = new Date(currentWeekStart);
+  colDate.setDate(colDate.getDate()+dayIdx);
+  document.getElementById('modalTitle').textContent =
+    `${colDate.getMonth()+1}/${colDate.getDate()} ${dayLabel}`;
+  document.getElementById('modalTime').textContent = timeStr;
+  document.getElementById('lunchWarn').style.display = isLunch ? 'block' : 'none';
+  document.getElementById('modalInput').value = (block && !block.isLunch) ? block.text : '';
+  document.getElementById('btnClear').style.display = (block && !block.isLunch) ? 'inline-block' : 'none';
+  document.getElementById('btnRestore').style.display = (block && block.isOverride) ? 'inline-block' : 'none';
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('modalInput').focus(), 50);
+}
+
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); modalCtx=null; }
+
+document.getElementById('btnCancel').addEventListener('click', closeModal);
+document.getElementById('btnSave').addEventListener('click', ()=>{
+  if(!modalCtx) return;
+  const { dayIdx, slotIndex, block, wd, weekKey } = modalCtx;
+  const text = document.getElementById('modalInput').value.trim();
+  if(!text) return;
+  const slots = block ? Array.from({length: block.endSlot-block.startSlot+1},(_,i)=>block.startSlot+i) : [slotIndex];
+  slots.forEach(s=>{
+    const k=`${dayIdx}_${s}`;
+    wd.events[k] = text;
+    if(LUNCH_SLOTS.includes(s)) wd.lunchOverride[k]=true;
+  });
+  saveAll(); closeModal(); renderCalendar(); showToast('已儲存');
+});
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  if(!modalCtx) return;
+  const { dayIdx, block, wd } = modalCtx;
+  if(!block) return;
+  for(let s=block.startSlot; s<=block.endSlot; s++){
+    const k=`${dayIdx}_${s}`;
+    delete wd.events[k];
+    if(LUNCH_SLOTS.includes(s)) delete wd.lunchOverride[k];
+  }
+  saveAll(); closeModal(); renderCalendar(); showToast('已清除');
+});
+
+document.getElementById('btnRestore').addEventListener('click', ()=>{
+  if(!modalCtx) return;
+  const { dayIdx, block, wd } = modalCtx;
+  if(!block) return;
+  for(let s=block.startSlot; s<=block.endSlot; s++){
+    const k=`${dayIdx}_${s}`;
+    delete wd.events[k];
+    delete wd.lunchOverride[k];
+  }
+  saveAll(); closeModal(); renderCalendar(); showToast('已恢復午休');
+});
+
+document.getElementById('modalOverlay').addEventListener('click', e=>{
+  if(e.target===document.getElementById('modalOverlay')) closeModal();
+});
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeModal();
+  if((e.metaKey||e.ctrlKey) && e.key==='Enter') document.getElementById('btnSave').click();
+});
+
+// ---- Week Navigation ----
+document.getElementById('btnPrevWeek').addEventListener('click', ()=>{
+  currentWeekStart.setDate(currentWeekStart.getDate()-7);
+  renderCalendar();
+});
+document.getElementById('btnNextWeek').addEventListener('click', ()=>{
+  currentWeekStart.setDate(currentWeekStart.getDate()+7);
+  renderCalendar();
+});
+document.getElementById('btnToday').addEventListener('click', ()=>{
+  currentWeekStart = getSundayOf(new Date());
+  renderCalendar();
+});
+
+// ---- Settings Panel ----
+const DAY_OPTIONS = DAY_NAMES.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
+
+function renderRulesUI(){
+  const container = document.getElementById('rulesContainer');
+  container.innerHTML = '';
+  fixedRules.forEach((rule, idx)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr auto auto auto auto;gap:6px;align-items:center;margin-bottom:8px;';
+    // label input
+    const inp = document.createElement('input');
+    inp.type='text'; inp.value=rule.label; inp.placeholder='行程名稱';
+    inp.addEventListener('change', e=> fixedRules[idx].label = e.target.value.trim());
+    // days multi-select (we'll use a custom checkboxes popup or simple select)
+    // For simplicity: comma-separated day checkboxes inline
+    const daysDiv = document.createElement('div');
+    daysDiv.style.cssText='display:flex;gap:4px;align-items:center;';
+    DAY_NAMES.forEach((dn,di)=>{
+      const label = document.createElement('label');
+      label.style.cssText='font-size:11px;display:flex;align-items:center;gap:2px;cursor:pointer;';
+      const cb = document.createElement('input');
+      cb.type='checkbox'; cb.checked=rule.days.includes(di);
+      cb.addEventListener('change', ()=>{
+        if(cb.checked){ if(!fixedRules[idx].days.includes(di)) fixedRules[idx].days.push(di); }
+        else { fixedRules[idx].days = fixedRules[idx].days.filter(x=>x!==di); }
+      });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(dn.replace('週','')));
+      daysDiv.appendChild(label);
+    });
+    // start/end slot selects
+    const makeSlotSelect = (val, onChange) => {
+      const sel = document.createElement('select');
+      for(let s=0;s<SLOT_COUNT;s++){
+        const opt=document.createElement('option');
+        opt.value=s; opt.textContent=slotToTime(s);
+        if(s===val) opt.selected=true;
+        sel.appendChild(opt);
+      }
+      sel.style.cssText='border:1px solid #ddd;border-radius:5px;padding:5px 4px;font-size:12px;';
+      sel.addEventListener('change', e=>onChange(parseInt(e.target.value)));
+      return sel;
+    };
+    const startSel = makeSlotSelect(rule.startSlot, v=>fixedRules[idx].startSlot=v);
+    const endSel = makeSlotSelect(rule.endSlot, v=>fixedRules[idx].endSlot=v);
+    // del button
+    const del = document.createElement('button');
+    del.className='btn-del-rule'; del.textContent='✕';
+    del.addEventListener('click', ()=>{ fixedRules.splice(idx,1); renderRulesUI(); });
+
+    row.appendChild(inp);
+    row.appendChild(daysDiv);
+    row.appendChild(startSel);
+    row.appendChild(document.createTextNode('–'));
+    row.appendChild(endSel);
+    row.appendChild(del);
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('btnSettings').addEventListener('click', ()=>{
+  renderRulesUI();
+  document.getElementById('settingsOverlay').classList.add('open');
+});
+document.getElementById('btnCloseSettings').addEventListener('click', ()=>{
+  document.getElementById('settingsOverlay').classList.remove('open');
+});
+document.getElementById('btnCancelSettings').addEventListener('click', ()=>{
+  loadAll(); // discard changes
+  document.getElementById('settingsOverlay').classList.remove('open');
+});
+document.getElementById('btnAddRule').addEventListener('click', ()=>{
+  fixedRules.push({ label:'', days:[], startSlot:0, endSlot:1 });
+  renderRulesUI();
+});
+document.getElementById('btnSaveSettings').addEventListener('click', ()=>{
+  saveAll();
+  document.getElementById('settingsOverlay').classList.remove('open');
+  renderCalendar();
+  showToast('固定行程已儲存');
+});
+document.getElementById('settingsOverlay').addEventListener('click', e=>{
+  if(e.target===document.getElementById('settingsOverlay'))
+    document.getElementById('settingsOverlay').classList.remove('open');
+});
+
+// ---- Toast ----
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// ---- Init ----
+loadAll();
+currentWeekStart = getSundayOf(new Date());
+renderCalendar();
+</script>
+</body>
+</html>
